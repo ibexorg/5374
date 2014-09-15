@@ -1,9 +1,16 @@
 "use strict";
 
+//ADD START #1 地区を追加
+var DistrictModel = function(){
+	this.district;
+}
+//ADD E N D #1
+
 /**
   エリア(ごみ処理の地域）を管理するクラスです。
 */
 var AreaModel = function() {
+  this.district; // ADD #1 地区を追加
   this.label;
   this.centerName;
   this.center;
@@ -306,13 +313,22 @@ var RemarkModel = function(data) {
 
 $(function() {
 /*   windowHeight = $(window).height(); */
-
+  var districtModels = new Array(); // ADD #1 地区を追加
   var center_data = new Array();
   var descriptions = new Array();
   var areaModels = new Array();
   var remarks = new Array();
 /*   var descriptions = new Array(); */
 
+  //ADD START #1 地区を追加
+  function getSelectedAreaMasterName() {
+    return localStorage.getItem("selected_area_master_name");
+  }
+
+  function setSelectedAreaMasterName(name) {
+    localStorage.setItem("selected_area_master_name", name);
+  }
+  //ADD E N D #1 地区を追加
 
   function getSelectedAreaName() {
     return localStorage.getItem("selected_area_name");
@@ -342,6 +358,102 @@ $(function() {
     });
   }
 
+  //ADD START #1 地区を追加
+  function updateDistrictList(){
+
+	  csvToArray("data/district.csv", function(tmp) {
+		  var district_label = tmp.shift();
+		  for (var i in tmp) {
+	        var row = tmp[i];
+	        var districtModel = new DistrictModel();
+	        districtModel.district = row[0];
+	        districtModels.push(districtModel);
+		  }
+
+	        //エリアとゴミ処理センターを対応後に、表示のリストを生成する。
+	        //ListメニューのHTML作成
+	        var selected_name = getSelectedAreaMasterName();
+	        var area_select_form = $("#select_area_master");
+	        var select_html = "";
+	        select_html += '<option value="-1">地区を選択してください</option>';
+	        for (var row_index in districtModels) {
+	          var area_name = districtModels[row_index].district;
+	          var selected = (selected_name == area_name) ? 'selected="selected"' : "";
+
+	          select_html += '<option value="' + row_index + '" ' + selected + " >" + area_name + "</option>";
+	        }
+
+	        //HTMLへの適応
+	        area_select_form.html(select_html);
+	        area_select_form.change();
+	  })
+  }
+  //ADD E N D #1
+
+  //MOD START #1 地区を追加
+  function updateAreaList(district) {
+	    csvToArray("data/area_days.csv", function(tmp) {
+	      var area_days_label = tmp.shift();
+	      for (var i in tmp) {
+	        var row = tmp[i];
+	        var area = new AreaModel();
+	        area.distrcit = row[0]; //地区
+	        area.label = row[1];
+	        area.centerName = row[2];
+            if(district != area.distrcit){
+            	continue;
+            }
+	        areaModels.push(area);
+	        //3列目以降の処理
+	        for (var r = 3; r < 3 + MaxDescription; r++) {
+	          if (area_days_label[r]) {
+	            var trash = new TrashModel(area_days_label[r], row[r], remarks);
+	            area.trash.push(trash);
+	          }
+	        }
+	      }
+
+	      csvToArray("data/center.csv", function(tmp) {
+	        //ゴミ処理センターのデータを解析します。
+	        //表示上は現れませんが、
+	        //金沢などの各処理センターの休止期間分は一週間ずらすという法則性のため
+	        //例えば第一金曜日のときは、一周ずらしその月だけ第二金曜日にする
+	        tmp.shift();
+	        for (var i in tmp) {
+	          var row = tmp[i];
+
+	          var center = new CenterModel(row);
+	          center_data.push(center);
+	        }
+	        //ゴミ処理センターを対応する各地域に割り当てます。
+	        for (var i in areaModels) {
+	          var area = areaModels[i];
+	          area.setCenter(center_data);
+	        };
+	        //エリアとゴミ処理センターを対応後に、表示のリストを生成する。
+	        //ListメニューのHTML作成
+	        var selected_name = getSelectedAreaName();
+	        var area_select_form = $("#select_area");
+	        var select_html = "";
+	        select_html += '<option value="-1">地域を選択してください</option>';
+	        for (var row_index in areaModels) {
+	          var area_name = areaModels[row_index].label;
+	          var selected = (selected_name == area_name) ? 'selected="selected"' : "";
+	          select_html += '<option value="' + row_index + '" ' + selected + " >" + area_name + "</option>";
+	        }
+
+	        //デバッグ用
+	        if (typeof dump == "function") {
+	          dump(areaModels);
+	        }
+	        //HTMLへの適応
+	        area_select_form.html(select_html);
+	        area_select_form.change();
+	      });
+	    });
+	  }
+
+  /*
   function updateAreaList() {
     csvToArray("data/area_days.csv", function(tmp) {
       var area_days_label = tmp.shift();
@@ -401,7 +513,8 @@ $(function() {
       });
     });
   }
-
+   */
+  //MOD E N D #1
 
   function createMenuList(after_action) {
     // 備考データを読み込む
@@ -584,6 +697,39 @@ $(function() {
     }
     return -1;
   }
+
+  // ADD START #1 地区を追加
+  //地区の変更時
+  function onChangeSelectMaster(row_index) {
+	  if (row_index == -1) {
+		  // 初期化
+		  $("#accordion").html("");
+		  $("#select_area").html('<option value="-1">地域を選択してください</option>');
+		  setSelectedAreaMasterName("");
+		  setSelectedAreaName("");
+		  return;
+	  }
+	  //var checkAreaMasterName = getSelectedAreaMasterName();
+	  //var checkAreaMasterNameBefore = getSelectedAreaMasterNameBefore();
+	  //if(checkAreaMasterName == checkAreaMasterNameBefore){
+	  //}else{
+	  //$("#accordion").html("");
+	//	  $("#select_area").html('<option value="-1">' + l10n.entities.selectarea.value + '</option>');
+	//	  setSelectedAreaName("");
+	//  }
+	  areaModels.length = 0;
+	  //setSelectedAreaMasterName(areaMasterModels[row_index].name);
+	  //setSelectedAreaMasterNameBefore(areaMasterModels[row_index].name);
+	  updateAreaList(districtModels[row_index].district);
+  }
+
+  // リストマスターが選択されたら
+  $("#select_area_master").change(function(data) {
+	  var row_index = $(data.target).val();
+	  onChangeSelectMaster(row_index);
+  });
+  // ADD E N D #1
+
   //リストが選択されたら
   $("#select_area").change(function(data) {
     var row_index = $(data.target).val();
@@ -636,5 +782,6 @@ $(function() {
         return "An unknown error occurred."
     }
   }
-  updateAreaList();
+  updateDistrictList(); // MOD #1 地区を追加
+  //updateAreaList();
 });
